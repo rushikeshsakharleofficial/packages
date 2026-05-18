@@ -1,0 +1,19 @@
+Package: code-outline-graph-go
+Version: 1.1.1
+Architecture: amd64
+Maintainer: Rushikesh Sakharle <ramsharath@instantly.ai>
+Installed-Size: 16866
+Depends: libc6
+Filename: pool/main/code-outline-graph-go_1.1.1_amd64.deb
+Size: 3547364
+MD5sum: 8bd8864ee4314192add9758f0d4575c8
+SHA1: 5ae5b173815f8b9ad9c65bee7b502bf8224cfe9e
+SHA256: db109b6be2c096d825fec9a5568acecb4c8e15da26d940933738c37b92f4a85b
+Section: utils
+Priority: optional
+Homepage: https://github.com/rushikeshsakharleofficial/gocode-outline-graph
+Description: Go code indexing and search MCP server.
+ Parses source files with tree-sitter, stores symbols in SQLite FTS5,
+ and exposes the index as an MCP server over stdio.
+ Supports: python, javascript, typescript, tsx, go, rust, java, c, cpp, ruby, bash
+

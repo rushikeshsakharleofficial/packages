@@ -1,0 +1,11 @@
+Origin: rushikeshsakharleofficial
+Label: rushikesh packages
+Suite: stable
+Codename: stable
+Architectures: amd64
+Components: main
+Description: Package repository for rushikeshsakharleofficial tools
+36afe87855527776e6ada49c198846a3  main/binary-amd64/Packages
+b3b54067841b132fc6e3d6312ba53e22  main/binary-amd64/Packages.gz
+ccdbd14abfd20a3be7173a39875a8400c7d915ca229db7c4740ca3cfa90bcc49  main/binary-amd64/Packages
+f5a3bb6d1184db3cda537bfa99c5634c3b5183aef8cd8bb0312a262b71f63b1b  main/binary-amd64/Packages.gz
