@@ -15,8 +15,15 @@ Write-Host "[1/7] Installing Cygwin build dependencies"
 $Setup = Join-Path $Build "setup-x86_64.exe"
 Invoke-WebRequest "https://cygwin.com/setup-x86_64.exe" -OutFile $Setup
 $Pkgs = "make,gawk,gcc-core,gcc-g++,attr,libattr-devel,libzstd-devel,liblz4-devel,libssl-devel,libidn2-devel,libxxhash-devel"
-& $Setup -q -n -N -d -R $CygwinRoot -s "https://mirrors.kernel.org/sourceware/cygwin/" -P $Pkgs
-if ($LASTEXITCODE -ne 0) { throw "Cygwin setup failed: $LASTEXITCODE" }
+$setupArgs = @(
+  "-q", "-n", "-N", "-d",
+  "-R", $CygwinRoot,
+  "-s", "https://mirrors.kernel.org/sourceware/cygwin/",
+  "-P", $Pkgs
+)
+$setupProcess = Start-Process -FilePath $Setup -ArgumentList $setupArgs -Wait -PassThru -NoNewWindow
+if ($setupProcess.ExitCode -ne 0) { throw "Cygwin setup failed: $($setupProcess.ExitCode)" }
+if (-not (Test-Path (Join-Path $CygwinRoot "bin\bash.exe"))) { throw "Cygwin setup completed but bash.exe is missing" }
 
 Write-Host "[2/7] Downloading upstream rsync $RsyncVersion"
 $Tar = Join-Path $Build "rsync-$RsyncVersion.tar.gz"
