@@ -1,11 +1,6 @@
 name: Build Rsync Windows MSI
 
 on:
-  push:
-    branches: [rsync-windows-build]
-    paths:
-      - 'rsync-windows/**'
-      - '.github/workflows/build-rsync-windows.yml'
   pull_request:
     branches: [main]
     paths:
@@ -15,6 +10,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: rsync-windows-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
