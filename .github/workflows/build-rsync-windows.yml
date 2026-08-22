@@ -6,6 +6,11 @@ on:
     paths:
       - 'rsync-windows/**'
       - '.github/workflows/build-rsync-windows.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'rsync-windows/**'
+      - '.github/workflows/build-rsync-windows.yml'
   workflow_dispatch:
 
 permissions:
