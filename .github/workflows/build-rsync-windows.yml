@@ -1,0 +1,45 @@
+name: Build Rsync Windows MSI
+
+on:
+  push:
+    branches: [rsync-windows-build]
+    paths:
+      - 'rsync-windows/**'
+      - '.github/workflows/build-rsync-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: rsync-windows
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build rsync and native Windows helpers
+        shell: powershell
+        run: .\scripts\build-windows.ps1
+
+      - name: Build MSI and portable ZIP
+        shell: powershell
+        run: .\scripts\build-msi.ps1
+
+      - name: Verify MSI exists
+        shell: powershell
+        run: |
+          if (-not (Test-Path .\dist\rsync-windows-3.5.0-x64.msi)) { throw "MSI missing" }
+
+      - name: Upload Windows packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: rsync-windows-3.5.0-x64
+          path: |
+            rsync-windows/dist/rsync-windows-3.5.0-x64.msi
+            rsync-windows/dist/rsync-windows-3.5.0-x64-portable.zip
+          if-no-files-found: error
+          retention-days: 30
