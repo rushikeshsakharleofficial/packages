@@ -41,7 +41,7 @@ static wchar_t *win_to_cyg(const wchar_t *in) {
         const wchar_t prefix[] = L"/cygdrive/x/";
         wchar_t *out = (wchar_t*)calloc((sizeof(prefix)/sizeof(prefix[0])) + len + 2, sizeof(wchar_t));
         if (!out) return NULL;
-        wcscpy_s(out, 14 + len, prefix);
+        wcscpy_s(out, (sizeof(prefix)/sizeof(prefix[0])) + len + 2, prefix);
         out[10] = drive;
         size_t pos = wcslen(out);
         for (size_t i = 0; i < len; ++i) out[pos + i] = rest[i] == L'\\' ? L'/' : rest[i];
@@ -142,11 +142,14 @@ int wmain(int argc, wchar_t **argv) {
     if (!slash) return 127;
     *(slash + 1) = 0;
 
+    /* Keep the POSIX runtime in an actual bin directory.  Cygwin can then
+       identify this package directory as its runtime root on machines that
+       do not have a separate Cygwin installation. */
     wchar_t core[MAX_PATH * 4];
-    swprintf_s(core, sizeof(core)/sizeof(core[0]), L"%srsync-core.exe", self);
+    swprintf_s(core, sizeof(core)/sizeof(core[0]), L"%lsbin\\rsync-core.exe", self);
     DWORD attr = GetFileAttributesW(core);
     if (attr == INVALID_FILE_ATTRIBUTES) {
-        fwprintf(stderr, L"rsync launcher: missing %s\n", core);
+        fwprintf(stderr, L"rsync launcher: missing %ls\n", core);
         return 127;
     }
 
@@ -167,11 +170,11 @@ int wmain(int argc, wchar_t **argv) {
         DWORD got = GetEnvironmentVariableW(L"ProgramData", programData, (DWORD)(sizeof(programData)/sizeof(programData[0])));
         if (got && got < sizeof(programData)/sizeof(programData[0])) {
             wchar_t cfg[MAX_PATH * 4];
-            swprintf_s(cfg, sizeof(cfg)/sizeof(cfg[0]), L"%s\\Rsync\\rsyncd.conf", programData);
+            swprintf_s(cfg, sizeof(cfg)/sizeof(cfg[0]), L"%ls\\Rsync\\rsyncd.conf", programData);
             wchar_t *cyg = win_to_cyg(cfg);
             if (cyg) {
                 wchar_t opt[MAX_PATH * 4 + 32];
-                swprintf_s(opt, sizeof(opt)/sizeof(opt[0]), L"--config=%s", cyg);
+                swprintf_s(opt, sizeof(opt)/sizeof(opt[0]), L"--config=%ls", cyg);
                 if (len + 2 >= cap) { cap *= 2; cmd = (wchar_t*)realloc(cmd, cap * sizeof(wchar_t)); if (!cmd) { free(cyg); return 125; } }
                 cmd[len++] = L' '; cmd[len] = 0;
                 if (!append_quoted(&cmd, &cap, &len, opt)) { free(cyg); free(cmd); return 125; }
