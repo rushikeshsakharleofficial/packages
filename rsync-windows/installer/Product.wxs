@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="Rsync for Windows" Language="1033" Version="3.5.0.0" Manufacturer="Rsync Windows Community Build" UpgradeCode="D3A1C85E-8A9E-48B7-B4CF-8B94E99E5B70">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Rsync for Windows is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="Rsync" />
+      </Directory>
+      <Directory Id="CommonAppDataFolder">
+        <Directory Id="PROGRAMDATARSYNC" Name="Rsync" />
+      </Directory>
+    </Directory>
+
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="PathComponent" Guid="9F857D8B-6F84-47DF-B0D4-D7E3F395B7D2" Win64="yes">
+        <RegistryValue Root="HKLM" Key="Software\RsyncWindows" Name="InstallDir" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="Software\RsyncWindows" Name="Version" Type="string" Value="3.5.0" />
+        <Environment Id="RsyncPath" Name="PATH" Value="[INSTALLFOLDER]" Part="last" Action="set" System="yes" Permanent="no" />
+      </Component>
+      <Component Id="DaemonServiceComponent" Guid="E6EE9098-4839-4452-A15E-8569D6621631" Win64="yes">
+        <File Id="RsyncServiceExe" Source="$(var.ServiceExe)" KeyPath="yes" />
+        <ServiceInstall Id="RsyncDaemonInstall" Name="RsyncDaemon" DisplayName="Rsync Daemon" Description="Rsync 3.5.0 daemon service host" Type="ownProcess" Start="demand" ErrorControl="normal" Account="LocalSystem" />
+        <ServiceControl Id="RsyncDaemonControl" Name="RsyncDaemon" Stop="both" Remove="uninstall" Wait="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="PROGRAMDATARSYNC">
+      <Component Id="ConfigSampleComponent" Guid="8341DD04-0CB8-40B0-9EC8-E1E2D4FCBB37" Win64="yes">
+        <File Id="RsyncdConfigExample" Source="$(var.ConfigExample)" Name="rsyncd.conf.example" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="MainFeature" Title="Rsync for Windows" Level="1">
+      <ComponentGroupRef Id="PayloadComponents" />
+      <ComponentRef Id="PathComponent" />
+      <ComponentRef Id="DaemonServiceComponent" />
+      <ComponentRef Id="ConfigSampleComponent" />
+    </Feature>
+  </Product>
+</Wix>
