@@ -19,8 +19,16 @@ $heat = Join-Path $wixbin "heat.exe"
 $candle = Join-Path $wixbin "candle.exe"
 $light = Join-Path $wixbin "light.exe"
 
+# Harvest a clean MSI payload. rsync-service.exe is installed explicitly by
+# Product.wxs because ServiceInstall must live in the executable's component.
+# Keep the service EXE in the original payload so the portable ZIP still gets it.
+$MsiPayload = Join-Path $Build "msi-payload"
+Remove-Item -Recurse -Force $MsiPayload -ErrorAction SilentlyContinue
+Copy-Item -Recurse $Payload $MsiPayload
+Remove-Item (Join-Path $MsiPayload "rsync-service.exe") -Force -ErrorAction SilentlyContinue
+
 $harvest = Join-Path $Build "PayloadFiles.wxs"
-& $heat dir $Payload -cg PayloadComponents -dr INSTALLFOLDER -gg -scom -sreg -sfrag -srd -var var.PayloadDir -out $harvest
+& $heat dir $MsiPayload -cg PayloadComponents -dr INSTALLFOLDER -gg -scom -sreg -sfrag -srd -var var.PayloadDir -out $harvest
 if ($LASTEXITCODE -ne 0) { throw "heat.exe failed" }
 
 $objdir = Join-Path $Build "wixobj"
@@ -28,7 +36,7 @@ New-Item -ItemType Directory -Force $objdir | Out-Null
 $product = Join-Path $Project "installer\Product.wxs"
 $service = Join-Path $Native "rsync-service.exe"
 $config = Join-Path $Project "installer\rsyncd.conf.example"
-& $candle -nologo -arch x64 "-dPayloadDir=$Payload" "-dServiceExe=$service" "-dConfigExample=$config" -out "$objdir\" $product $harvest
+& $candle -nologo -arch x64 "-dPayloadDir=$MsiPayload" "-dServiceExe=$service" "-dConfigExample=$config" -out "$objdir\" $product $harvest
 if ($LASTEXITCODE -ne 0) { throw "candle.exe failed" }
 
 $out = Join-Path $Dist "rsync-windows-3.5.0-x64.msi"
