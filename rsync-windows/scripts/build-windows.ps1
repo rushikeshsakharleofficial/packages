@@ -7,6 +7,8 @@ $Project = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $Build = Join-Path $Project "build"
 $Stage = Join-Path $Build "stage"
 $Payload = Join-Path $Stage "payload"
+$PayloadBin = Join-Path $Payload "bin"
+$PayloadEtc = Join-Path $Payload "etc"
 $Native = Join-Path $Build "native"
 $Dist = Join-Path $Project "dist"
 New-Item -ItemType Directory -Force $Build,$Stage,$Payload,$Native,$Dist | Out-Null
@@ -52,26 +54,27 @@ $compile = "call `"$devcmd`" -arch=x64 && cl /nologo /O2 /MT /DUNICODE /D_UNICOD
 cmd.exe /d /s /c $compile
 if ($LASTEXITCODE -ne 0) { throw "MSVC build failed: $LASTEXITCODE" }
 
-Write-Host "[5/7] Staging rsync and runtime DLLs"
+Write-Host "[5/7] Staging portable rsync runtime"
 Remove-Item -Recurse -Force $Payload -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force $Payload | Out-Null
+New-Item -ItemType Directory -Force $Payload,$PayloadBin,$PayloadEtc | Out-Null
 Copy-Item $launchExe (Join-Path $Payload "rsync.exe")
 $core = Join-Path $Build "rsync-$RsyncVersion\rsync.exe"
-$coreDest = Join-Path $Payload "rsync-core.exe"
+$coreDest = Join-Path $PayloadBin "rsync-core.exe"
 Copy-Item $core $coreDest
 Copy-Item (Join-Path $Build "rsync-$RsyncVersion\COPYING") (Join-Path $Payload "COPYING.txt")
 Copy-Item (Join-Path $Project "README.md") (Join-Path $Payload "README.txt")
+Set-Content -Encoding ASCII -Path (Join-Path $PayloadEtc "fstab") -Value "none /cygdrive cygdrive binary,posix=0,user 0 0"
 
 $cygcheck = Join-Path $CygwinRoot "bin\cygcheck.exe"
 $deps = & $cygcheck $core | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^([A-Za-z]:\\.*\.dll)$' }
 foreach ($dep in $deps) {
   if ($dep.StartsWith($CygwinRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-    Copy-Item $dep (Join-Path $Payload ([IO.Path]::GetFileName($dep))) -Force
+    Copy-Item $dep (Join-Path $PayloadBin ([IO.Path]::GetFileName($dep))) -Force
   }
 }
-if (-not (Test-Path (Join-Path $Payload "cygwin1.dll"))) { throw "cygwin1.dll was not staged" }
+if (-not (Test-Path (Join-Path $PayloadBin "cygwin1.dll"))) { throw "cygwin1.dll was not staged" }
 
-Write-Host "[6/7] Smoke-testing packaged command"
+Write-Host "[6/7] Smoke-testing packaged command and Windows paths"
 Push-Location $Payload
 try {
   & .\rsync.exe --version
