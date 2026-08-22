@@ -29,8 +29,6 @@ $setupProcess = Start-Process -FilePath $Setup -ArgumentList $setupArgs -Wait -P
 if ($setupProcess.ExitCode -ne 0) { throw "Cygwin setup failed: $($setupProcess.ExitCode)" }
 $CygwinBin = Join-Path $CygwinRoot "bin"
 if (-not (Test-Path (Join-Path $CygwinBin "bash.exe"))) { throw "Cygwin setup completed but bash.exe is missing" }
-# cygcheck resolves Cygwin DLLs via PATH. Keep the private build runtime first
-# so dependency discovery and smoke tests never depend on a system Cygwin install.
 $env:PATH = "$CygwinBin;$env:PATH"
 
 Write-Host "[2/7] Downloading upstream rsync $RsyncVersion"
@@ -43,15 +41,10 @@ if ($RsyncVersion -eq "3.5.0") {
 
 Write-Host "[3/7] Building upstream rsync with Cygwin"
 $cygbash = Join-Path $CygwinBin "bash.exe"
-$cygcheck = Join-Path $CygwinBin "cygcheck.exe"
 $buildCyg = (& (Join-Path $CygwinBin "cygpath.exe") -u $Build).Trim()
-& $cygbash -lc "set -e; cd '$buildCyg'; rm -rf rsync-$RsyncVersion; tar -xzf rsync-$RsyncVersion.tar.gz; cd rsync-$RsyncVersion; ./configure --with-included-popt --with-included-zlib; make -j2"
-if ($LASTEXITCODE -ne 0) { throw "rsync build failed: $LASTEXITCODE" }
+& $cygbash -lc "set -e; cd '$buildCyg'; rm -rf rsync-$RsyncVersion; tar -xzf rsync-$RsyncVersion.tar.gz; cd rsync-$RsyncVersion; ./configure --with-included-popt --with-included-zlib; make -j2; ./rsync.exe --version"
+if ($LASTEXITCODE -ne 0) { throw "rsync build or version check failed: $LASTEXITCODE" }
 $core = Join-Path $Build "rsync-$RsyncVersion\rsync.exe"
-& $cygcheck $core
-if ($LASTEXITCODE -ne 0) { throw "cygcheck found an unresolved rsync runtime dependency" }
-& $cygbash -lc "cd '$buildCyg/rsync-$RsyncVersion' && ./rsync.exe --version"
-if ($LASTEXITCODE -ne 0) { throw "built rsync --version failed: $LASTEXITCODE" }
 
 Write-Host "[4/7] Building native Windows launcher/service"
 $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
@@ -70,19 +63,27 @@ Write-Host "[5/7] Staging portable rsync runtime"
 Remove-Item -Recurse -Force $Payload -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $Payload,$PayloadBin,$PayloadEtc | Out-Null
 Copy-Item $launchExe (Join-Path $Payload "rsync.exe")
+Copy-Item $svcExe (Join-Path $Payload "rsync-service.exe")
 $coreDest = Join-Path $PayloadBin "rsync-core.exe"
 Copy-Item $core $coreDest
 Copy-Item (Join-Path $Build "rsync-$RsyncVersion\COPYING") (Join-Path $Payload "COPYING.txt")
 Copy-Item (Join-Path $Project "README.md") (Join-Path $Payload "README.txt")
 Set-Content -Encoding ASCII -Path (Join-Path $PayloadEtc "fstab") -Value "none /cygdrive cygdrive binary,posix=0,user 0 0"
 
-$deps = & $cygcheck $core | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^([A-Za-z]:\\.*\.dll)$' }
-foreach ($dep in $deps) {
-  if ($dep.StartsWith($CygwinRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-    Copy-Item $dep (Join-Path $PayloadBin ([IO.Path]::GetFileName($dep))) -Force
-  }
+# Do not rely on Windows cygcheck dependency resolution here. A Cygwin-linked
+# executable resolves its runtime DLLs from the executable directory. Stage
+# the complete Cygwin DLL set installed for this build into payload\bin. This
+# is deliberately conservative and makes the MSI/ZIP independent of any
+# machine-wide Cygwin installation or registry state.
+$runtimeDlls = Get-ChildItem -Path $CygwinBin -Filter "cyg*.dll" -File
+if (-not $runtimeDlls) { throw "No Cygwin runtime DLLs found in $CygwinBin" }
+foreach ($dll in $runtimeDlls) {
+  Copy-Item $dll.FullName (Join-Path $PayloadBin $dll.Name) -Force
 }
 if (-not (Test-Path (Join-Path $PayloadBin "cygwin1.dll"))) { throw "cygwin1.dll was not staged" }
+foreach ($required in @("cygcrypto-3.dll","cygiconv-2.dll","cygintl-8.dll","cyglz4-1.dll","cygzstd-1.dll","cygxxhash-0.dll")) {
+  if (-not (Test-Path (Join-Path $PayloadBin $required))) { throw "Required runtime DLL missing: $required" }
+}
 
 Write-Host "[6/7] Smoke-testing packaged command and Windows paths"
 Push-Location $Payload
