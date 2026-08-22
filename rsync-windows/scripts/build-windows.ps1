@@ -17,7 +17,7 @@ Write-Host "[1/7] Installing Cygwin build dependencies"
 $Setup = Join-Path $Build "setup-x86_64.exe"
 Invoke-WebRequest "https://cygwin.com/setup-x86_64.exe" -OutFile $Setup
 # libxxhash-devel currently does not depend on its runtime package, so request
-# libxxhash0 explicitly.  The other development libraries pull their runtimes.
+# libxxhash0 explicitly. The other development libraries pull their runtimes.
 $Pkgs = "make,gawk,gcc-core,gcc-g++,attr,libattr-devel,libzstd-devel,liblz4-devel,libssl-devel,libidn2-devel,libxxhash-devel,libxxhash0"
 $setupArgs = @(
   "-q", "-n", "-N", "-d",
@@ -27,7 +27,11 @@ $setupArgs = @(
 )
 $setupProcess = Start-Process -FilePath $Setup -ArgumentList $setupArgs -Wait -PassThru -NoNewWindow
 if ($setupProcess.ExitCode -ne 0) { throw "Cygwin setup failed: $($setupProcess.ExitCode)" }
-if (-not (Test-Path (Join-Path $CygwinRoot "bin\bash.exe"))) { throw "Cygwin setup completed but bash.exe is missing" }
+$CygwinBin = Join-Path $CygwinRoot "bin"
+if (-not (Test-Path (Join-Path $CygwinBin "bash.exe"))) { throw "Cygwin setup completed but bash.exe is missing" }
+# cygcheck resolves Cygwin DLLs via PATH. Keep the private build runtime first
+# so dependency discovery and smoke tests never depend on a system Cygwin install.
+$env:PATH = "$CygwinBin;$env:PATH"
 
 Write-Host "[2/7] Downloading upstream rsync $RsyncVersion"
 $Tar = Join-Path $Build "rsync-$RsyncVersion.tar.gz"
@@ -38,9 +42,9 @@ if ($RsyncVersion -eq "3.5.0") {
 }
 
 Write-Host "[3/7] Building upstream rsync with Cygwin"
-$cygbash = Join-Path $CygwinRoot "bin\bash.exe"
-$cygcheck = Join-Path $CygwinRoot "bin\cygcheck.exe"
-$buildCyg = (& (Join-Path $CygwinRoot "bin\cygpath.exe") -u $Build).Trim()
+$cygbash = Join-Path $CygwinBin "bash.exe"
+$cygcheck = Join-Path $CygwinBin "cygcheck.exe"
+$buildCyg = (& (Join-Path $CygwinBin "cygpath.exe") -u $Build).Trim()
 & $cygbash -lc "set -e; cd '$buildCyg'; rm -rf rsync-$RsyncVersion; tar -xzf rsync-$RsyncVersion.tar.gz; cd rsync-$RsyncVersion; ./configure --with-included-popt --with-included-zlib; make -j2"
 if ($LASTEXITCODE -ne 0) { throw "rsync build failed: $LASTEXITCODE" }
 $core = Join-Path $Build "rsync-$RsyncVersion\rsync.exe"
