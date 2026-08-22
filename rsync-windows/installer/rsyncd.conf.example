@@ -1,0 +1,21 @@
+# Rsync for Windows daemon configuration example.
+# Copy this file to: C:\ProgramData\Rsync\rsyncd.conf
+# Then edit paths/access rules and start the service:
+#   sc start RsyncDaemon
+#
+# SECURITY: no writable module is enabled by default.
+
+# port = 873
+# log file = /cygdrive/c/ProgramData/Rsync/rsyncd.log
+# pid file = /cygdrive/c/ProgramData/Rsync/rsyncd.pid
+# lock file = /cygdrive/c/ProgramData/Rsync/rsyncd.lock
+# use chroot = false
+
+# [backup]
+#     path = /cygdrive/d/Backup
+#     comment = Windows backup module
+#     read only = false
+#     list = true
+#     auth users = backupuser
+#     secrets file = /cygdrive/c/ProgramData/Rsync/rsyncd.secrets
+#     hosts allow = 192.168.0.0/16
