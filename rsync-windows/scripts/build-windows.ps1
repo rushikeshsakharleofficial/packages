@@ -16,7 +16,9 @@ New-Item -ItemType Directory -Force $Build,$Stage,$Payload,$Native,$Dist | Out-N
 Write-Host "[1/7] Installing Cygwin build dependencies"
 $Setup = Join-Path $Build "setup-x86_64.exe"
 Invoke-WebRequest "https://cygwin.com/setup-x86_64.exe" -OutFile $Setup
-$Pkgs = "make,gawk,gcc-core,gcc-g++,attr,libattr-devel,libzstd-devel,liblz4-devel,libssl-devel,libidn2-devel,libxxhash-devel"
+# libxxhash-devel currently does not depend on its runtime package, so request
+# libxxhash0 explicitly.  The other development libraries pull their runtimes.
+$Pkgs = "make,gawk,gcc-core,gcc-g++,attr,libattr-devel,libzstd-devel,liblz4-devel,libssl-devel,libidn2-devel,libxxhash-devel,libxxhash0"
 $setupArgs = @(
   "-q", "-n", "-N", "-d",
   "-R", $CygwinRoot,
@@ -37,9 +39,15 @@ if ($RsyncVersion -eq "3.5.0") {
 
 Write-Host "[3/7] Building upstream rsync with Cygwin"
 $cygbash = Join-Path $CygwinRoot "bin\bash.exe"
+$cygcheck = Join-Path $CygwinRoot "bin\cygcheck.exe"
 $buildCyg = (& (Join-Path $CygwinRoot "bin\cygpath.exe") -u $Build).Trim()
-& $cygbash -lc "set -e; cd '$buildCyg'; rm -rf rsync-$RsyncVersion; tar -xzf rsync-$RsyncVersion.tar.gz; cd rsync-$RsyncVersion; ./configure --with-included-popt --with-included-zlib; make -j2; ./rsync.exe --version"
+& $cygbash -lc "set -e; cd '$buildCyg'; rm -rf rsync-$RsyncVersion; tar -xzf rsync-$RsyncVersion.tar.gz; cd rsync-$RsyncVersion; ./configure --with-included-popt --with-included-zlib; make -j2"
 if ($LASTEXITCODE -ne 0) { throw "rsync build failed: $LASTEXITCODE" }
+$core = Join-Path $Build "rsync-$RsyncVersion\rsync.exe"
+& $cygcheck $core
+if ($LASTEXITCODE -ne 0) { throw "cygcheck found an unresolved rsync runtime dependency" }
+& $cygbash -lc "cd '$buildCyg/rsync-$RsyncVersion' && ./rsync.exe --version"
+if ($LASTEXITCODE -ne 0) { throw "built rsync --version failed: $LASTEXITCODE" }
 
 Write-Host "[4/7] Building native Windows launcher/service"
 $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
@@ -58,14 +66,12 @@ Write-Host "[5/7] Staging portable rsync runtime"
 Remove-Item -Recurse -Force $Payload -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $Payload,$PayloadBin,$PayloadEtc | Out-Null
 Copy-Item $launchExe (Join-Path $Payload "rsync.exe")
-$core = Join-Path $Build "rsync-$RsyncVersion\rsync.exe"
 $coreDest = Join-Path $PayloadBin "rsync-core.exe"
 Copy-Item $core $coreDest
 Copy-Item (Join-Path $Build "rsync-$RsyncVersion\COPYING") (Join-Path $Payload "COPYING.txt")
 Copy-Item (Join-Path $Project "README.md") (Join-Path $Payload "README.txt")
 Set-Content -Encoding ASCII -Path (Join-Path $PayloadEtc "fstab") -Value "none /cygdrive cygdrive binary,posix=0,user 0 0"
 
-$cygcheck = Join-Path $CygwinRoot "bin\cygcheck.exe"
 $deps = & $cygcheck $core | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^([A-Za-z]:\\.*\.dll)$' }
 foreach ($dep in $deps) {
   if ($dep.StartsWith($CygwinRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
